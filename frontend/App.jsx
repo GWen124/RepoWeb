@@ -72,6 +72,10 @@ export default function App() {
   const [result, setResult] = useState('');
   const [files, setFiles] = useState([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
+  const [tree, setTree] = useState([]);
+  const [previewContent, setPreviewContent] = useState('');
+  const [previewPath, setPreviewPath] = useState('');
+  const [expanded, setExpanded] = useState({});
 
   // 登录流程
   const handleLogin = () => {
@@ -97,22 +101,23 @@ export default function App() {
     }
   }, []);
 
-  // 获取仓库文件列表
-  const fetchFiles = async () => {
+  // 获取仓库目录树（递归）
+  const fetchTree = async (path = '') => {
     if (!accessToken || !repo) return;
     setLoadingFiles(true);
     try {
-      const res = await fetch(`https://api.github.com/repos/${repo}/contents?access_token=${accessToken}`);
+      const res = await fetch(`https://api.github.com/repos/${repo}/contents/${path}?access_token=${accessToken}`);
       const data = await res.json();
       if (Array.isArray(data)) {
-        setFiles(data);
-      } else {
-        setFiles([]);
+        if (!path) setTree(data);
+        return data;
       }
+      return [];
     } catch {
-      setFiles([]);
+      return [];
+    } finally {
+      setLoadingFiles(false);
     }
-    setLoadingFiles(false);
   };
 
   // 上传/编辑文件
@@ -145,12 +150,59 @@ export default function App() {
     fetchFiles();
   };
 
-  // 点击文件列表项自动填充 path 和 sha
-  const handleFileClick = file => {
+  // 目录树渲染
+  const renderTree = (nodes, parentPath = '') => (
+    <div style={{ marginLeft: 12 }}>
+      {nodes.map(node => {
+        if (node.type === 'dir') {
+          const isOpen = expanded[node.path];
+          return (
+            <div key={node.path}>
+              <span style={{ cursor: 'pointer', color: '#2563eb', fontWeight: 600 }} onClick={async () => {
+                setExpanded(exp => ({ ...exp, [node.path]: !exp[node.path] }));
+                if (!expanded[node.path]) {
+                  const children = await fetchTree(node.path);
+                  setTree(tree => tree.map(t => t.path === node.path ? { ...t, children } : t));
+                }
+              }}>
+                {isOpen ? '📂' : '📁'} {node.name}
+              </span>
+              {isOpen && node.children && renderTree(node.children, node.path)}
+            </div>
+          );
+        }
+        // 文件
+        return (
+          <div key={node.path} style={{ ...styles.fileItem, color: '#333' }} onClick={() => handlePreview(node)}>
+            <span role="img" aria-label="file">📄</span>
+            <span>{node.name}</span>
+            <span style={{ color: '#888', fontSize: 12 }}>{node.sha ? node.sha.slice(0, 7) : ''}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // 预览文件内容
+  const handlePreview = async file => {
+    setPreviewPath(file.path);
     setPath(file.path);
     setSha(file.sha || '');
-    setContent('');
     setMessage('');
+    setContent('');
+    setResult('');
+    try {
+      const res = await fetch(`https://api.github.com/repos/${repo}/contents/${file.path}?access_token=${accessToken}`);
+      const data = await res.json();
+      if (data && data.content) {
+        setPreviewContent(decodeURIComponent(escape(window.atob(data.content))));
+        setContent(decodeURIComponent(escape(window.atob(data.content))));
+      } else {
+        setPreviewContent('无法获取内容');
+      }
+    } catch {
+      setPreviewContent('获取内容失败');
+    }
   };
 
   return (
@@ -170,20 +222,14 @@ export default function App() {
             <label>仓库名（如 GWen124/RepoWeb）：<br />
               <input style={styles.input} value={repo} onChange={e => setRepo(e.target.value)} />
             </label>
-            <button style={styles.button} onClick={fetchFiles} disabled={!repo || !accessToken || loadingFiles}>
-              {loadingFiles ? '加载中...' : '获取文件列表'}
+            <button style={styles.button} onClick={() => fetchTree() } disabled={!repo || !accessToken || loadingFiles}>
+              {loadingFiles ? '加载中...' : '获取目录树'}
             </button>
           </div>
-          {files.length > 0 && (
+          {tree.length > 0 && (
             <div style={styles.fileList}>
-              <b>仓库文件列表：</b>
-              {files.map(file => (
-                <div key={file.sha} style={styles.fileItem} onClick={() => handleFileClick(file)}>
-                  <span role="img" aria-label="file">📄</span>
-                  <span>{file.path}</span>
-                  <span style={{ color: '#888', fontSize: 12 }}>{file.sha.slice(0, 7)}</span>
-                </div>
-              ))}
+              <b>仓库目录树：</b>
+              {renderTree(tree)}
             </div>
           )}
           <div style={styles.card}>
@@ -205,6 +251,16 @@ export default function App() {
               <b>操作结果：</b>
               <div>{result}</div>
             </div>
+            {previewPath && (
+              <div style={{ marginTop: 24, background: '#eef', padding: 12, borderRadius: 4 }}>
+                <b>文件内容预览：</b>
+                <div style={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', color: '#222', marginTop: 8 }}>
+                  <span style={{ color: '#2563eb' }}>{previewPath}</span>
+                  <br />
+                  {previewContent}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
