@@ -84,20 +84,22 @@ export default function App() {
 
   // 检查 URL 是否带有 access_token
   React.useEffect(() => {
-    const search = window.location.search;
-    if (search.includes('access_token')) {
-      try {
-        const params = new URLSearchParams(search);
-        const token = params.get('access_token');
-        setAccessToken(token);
-        // 获取用户信息
-        fetch(`/api/github/callback${search}`)
-          .then(res => res.json())
-          .then(data => {
-            setUser(data.user);
-            setAccessToken(data.access_token);
-          });
-      } catch {}
+    // 自动从 URL 获取 access_token
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('access_token');
+    if (token) {
+      setAccessToken(token);
+      // 用 access_token 拉取用户信息
+      fetch(`https://api.github.com/user`, {
+        headers: {
+          Authorization: `token ${token}`,
+          'User-Agent': 'cf-github-oauth-demo',
+        },
+      })
+        .then(res => res.json())
+        .then(data => {
+          setUser(data);
+        });
     }
   }, []);
 
