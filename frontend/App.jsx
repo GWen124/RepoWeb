@@ -1,4 +1,65 @@
+
 import React, { useState } from 'react';
+
+const styles = {
+  container: {
+    padding: 32,
+    maxWidth: 800,
+    margin: '0 auto',
+    fontFamily: 'system-ui, sans-serif',
+    background: '#f4f8fb',
+    borderRadius: 12,
+    boxShadow: '0 2px 12px #0001',
+  },
+  card: {
+    background: '#fff',
+    borderRadius: 8,
+    padding: 24,
+    marginBottom: 24,
+    boxShadow: '0 1px 6px #0001',
+  },
+  input: {
+    width: '100%',
+    padding: '8px 12px',
+    borderRadius: 4,
+    border: '1px solid #ccc',
+    marginTop: 4,
+    marginBottom: 12,
+    fontSize: 16,
+  },
+  button: {
+    padding: '8px 24px',
+    borderRadius: 4,
+    border: 'none',
+    background: '#2563eb',
+    color: '#fff',
+    fontWeight: 600,
+    cursor: 'pointer',
+    marginRight: 12,
+    marginTop: 8,
+  },
+  danger: {
+    background: '#e55',
+    color: '#fff',
+  },
+  fileList: {
+    background: '#fff',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 24,
+    boxShadow: '0 1px 6px #0001',
+    maxHeight: 240,
+    overflowY: 'auto',
+  },
+  fileItem: {
+    padding: '6px 0',
+    borderBottom: '1px solid #eee',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  },
+};
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -9,6 +70,8 @@ export default function App() {
   const [message, setMessage] = useState('');
   const [sha, setSha] = useState('');
   const [result, setResult] = useState('');
+  const [files, setFiles] = useState([]);
+  const [loadingFiles, setLoadingFiles] = useState(false);
 
   // 登录流程
   const handleLogin = () => {
@@ -34,6 +97,24 @@ export default function App() {
     }
   }, []);
 
+  // 获取仓库文件列表
+  const fetchFiles = async () => {
+    if (!accessToken || !repo) return;
+    setLoadingFiles(true);
+    try {
+      const res = await fetch(`https://api.github.com/repos/${repo}/contents?access_token=${accessToken}`);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setFiles(data);
+      } else {
+        setFiles([]);
+      }
+    } catch {
+      setFiles([]);
+    }
+    setLoadingFiles(false);
+  };
+
   // 上传/编辑文件
   const handleUpload = async () => {
     if (!accessToken || !repo || !path || !content) {
@@ -46,6 +127,7 @@ export default function App() {
       body: JSON.stringify({ content, message }),
     });
     setResult(await res.text());
+    fetchFiles();
   };
 
   // 删除文件
@@ -60,49 +142,69 @@ export default function App() {
       body: JSON.stringify({ sha, message }),
     });
     setResult(await res.text());
+    fetchFiles();
+  };
+
+  // 点击文件列表项自动填充 path 和 sha
+  const handleFileClick = file => {
+    setPath(file.path);
+    setSha(file.sha || '');
+    setContent('');
+    setMessage('');
   };
 
   return (
-    <div style={{ padding: 32, maxWidth: 600, margin: '0 auto' }}>
-      <h1>GitHub 仓库文件操作</h1>
+    <div style={styles.container}>
+      <h1 style={{ textAlign: 'center', color: '#2563eb', marginBottom: 32 }}>GitHub 仓库文件操作</h1>
       {!user ? (
-        <button onClick={handleLogin}>使用 GitHub 登录</button>
+        <div style={styles.card}>
+          <button style={styles.button} onClick={handleLogin}>使用 GitHub 登录</button>
+        </div>
       ) : (
         <div>
-          <div style={{ marginBottom: 16 }}>
-            <img src={user.avatar_url} alt="avatar" style={{ width: 48, borderRadius: 24 }} />
-            <span style={{ marginLeft: 8 }}>欢迎，{user.name || user.login}</span>
-          </div>
-          <div style={{ marginBottom: 16 }}>
+          <div style={styles.card}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+              <img src={user.avatar_url} alt="avatar" style={{ width: 48, borderRadius: 24, marginRight: 12 }} />
+              <span style={{ fontSize: 18 }}>欢迎，{user.name || user.login}</span>
+            </div>
             <label>仓库名（如 GWen124/RepoWeb）：<br />
-              <input value={repo} onChange={e => setRepo(e.target.value)} style={{ width: '100%' }} />
+              <input style={styles.input} value={repo} onChange={e => setRepo(e.target.value)} />
             </label>
+            <button style={styles.button} onClick={fetchFiles} disabled={!repo || !accessToken || loadingFiles}>
+              {loadingFiles ? '加载中...' : '获取文件列表'}
+            </button>
           </div>
-          <div style={{ marginBottom: 16 }}>
+          {files.length > 0 && (
+            <div style={styles.fileList}>
+              <b>仓库文件列表：</b>
+              {files.map(file => (
+                <div key={file.sha} style={styles.fileItem} onClick={() => handleFileClick(file)}>
+                  <span role="img" aria-label="file">📄</span>
+                  <span>{file.path}</span>
+                  <span style={{ color: '#888', fontSize: 12 }}>{file.sha.slice(0, 7)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={styles.card}>
             <label>文件路径（如 README.md）：<br />
-              <input value={path} onChange={e => setPath(e.target.value)} style={{ width: '100%' }} />
+              <input style={styles.input} value={path} onChange={e => setPath(e.target.value)} />
             </label>
-          </div>
-          <div style={{ marginBottom: 16 }}>
             <label>内容（上传/编辑时填写）：<br />
-              <textarea value={content} onChange={e => setContent(e.target.value)} style={{ width: '100%' }} rows={4} />
+              <textarea style={styles.input} value={content} onChange={e => setContent(e.target.value)} rows={4} />
             </label>
-          </div>
-          <div style={{ marginBottom: 16 }}>
             <label>提交说明（可选）：<br />
-              <input value={message} onChange={e => setMessage(e.target.value)} style={{ width: '100%' }} />
+              <input style={styles.input} value={message} onChange={e => setMessage(e.target.value)} />
             </label>
-          </div>
-          <button onClick={handleUpload} style={{ marginRight: 16 }}>上传/编辑文件</button>
-          <div style={{ margin: '16px 0' }}>
+            <button style={styles.button} onClick={handleUpload}>上传/编辑文件</button>
             <label>sha（删除文件时填写）：<br />
-              <input value={sha} onChange={e => setSha(e.target.value)} style={{ width: '100%' }} />
+              <input style={styles.input} value={sha} onChange={e => setSha(e.target.value)} />
             </label>
-          </div>
-          <button onClick={handleDelete} style={{ background: '#e55', color: '#fff' }}>删除文件</button>
-          <div style={{ marginTop: 24, whiteSpace: 'pre-wrap', color: '#333', background: '#f7f7f7', padding: 12, borderRadius: 4 }}>
-            <b>操作结果：</b>
-            <div>{result}</div>
+            <button style={{ ...styles.button, ...styles.danger }} onClick={handleDelete}>删除文件</button>
+            <div style={{ marginTop: 24, whiteSpace: 'pre-wrap', color: '#333', background: '#f7f7f7', padding: 12, borderRadius: 4 }}>
+              <b>操作结果：</b>
+              <div>{result}</div>
+            </div>
           </div>
         </div>
       )}
