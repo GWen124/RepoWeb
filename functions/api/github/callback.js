@@ -35,8 +35,7 @@ export async function onRequest(context) {
   });
   const user = await userRes.json();
 
-  // 返回用户信息（实际项目建议设置 session/cookie）
-  return new Response(JSON.stringify({ user, access_token: tokenData.access_token }), {
-    headers: { 'Content-Type': 'application/json' },
-  });
+  // 登录成功后自动跳转到前端首页，并带上 access_token
+  const frontendUrl = 'https://repoweb.gw124.top';
+  return Response.redirect(`${frontendUrl}/?access_token=${tokenData.access_token}`, 302);
 }
