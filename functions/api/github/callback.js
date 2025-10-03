@@ -7,8 +7,8 @@ export async function onRequest(context) {
   }
 
   // 交换 access_token
-  const clientId = '你的GitHubClientID'; // 替换
-  const clientSecret = '你的GitHubClientSecret'; // 替换
+  const clientId = context.env.GITHUB_CLIENT_ID;
+  const clientSecret = context.env.GITHUB_CLIENT_SECRET;
   const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
     method: 'POST',
     headers: {
