@@ -1,8 +1,8 @@
 // GitHub OAuth 登录接口
 export async function onRequest(context) {
   try {
-    const clientId = process.env.GITHUB_CLIENT_ID;
-    const redirectUri = process.env.GITHUB_REDIRECT_URI;
+    const clientId = import.meta.env.GITHUB_CLIENT_ID;
+    const redirectUri = import.meta.env.GITHUB_REDIRECT_URI;
     if (!clientId || !redirectUri) {
       return new Response(
         `环境变量缺失：GITHUB_CLIENT_ID=${clientId}, GITHUB_REDIRECT_URI=${redirectUri}`,
